@@ -11,16 +11,40 @@ connectDB();
 
 const app = express();
 
-// Body Parser Middleware
-app.use(express.json());
+// --- CORS Configuration ---
+// Define the list of allowed origins (your frontend URLs)
+const allowedOrigins = [
+  'http://localhost:5174', // Your local dev environment
+  // Add your deployed frontend URL here once you have it
+  // e.g., 'https://my-lms-frontend.vercel.app' 
+];
 
-// Enable CORS
-app.use(cors());
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like Postman or mobile apps)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is in our allowed list
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true, // Allow cookies and authorization headers
+};
+
+// Use the CORS middleware with our options
+app.use(cors(corsOptions));
+
+// Body Parser Middleware (must be after CORS)
+app.use(express.json());
 
 // Define Routes
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/courses', require('./routes/courseRoutes'));
 
+// Root route for testing if the API is running
 app.get('/', (req, res) => {
     res.send('LMS API is running...');
 });
