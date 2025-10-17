@@ -2,6 +2,7 @@ const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
+const mongoose = require('mongoose');
 
 // @desc    Create an assignment (MCQ Quiz) for a course
 // @route   POST /api/assignments
