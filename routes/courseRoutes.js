@@ -7,7 +7,7 @@ const {
   getMyCourses,
   getEnrolledStudents
 } = require('../controllers/courseController');
-const { getCourseAssignments } = require('../controllers/assignmentController'); // <-- IMPORT NEW FUNCTION
+const { getCourseAssignments } = require('../controllers/assignmentController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
 // BRONZE LEVEL ROUTES
@@ -20,8 +20,8 @@ router.get('/my-courses', protect, authorize('Student'), getMyCourses);
 router.post('/:id/enroll', protect, authorize('Student'), enrollInCourse);
 router.get('/:id/students', protect, authorize('Teacher'), getEnrolledStudents);
 
-// --- NEW GOLD LEVEL ROUTE ---
-// Get all assignments for a specific course (for enrolled students)
-router.get('/:courseId/assignments', protect, authorize('Student'), getCourseAssignments);
+// GOLD LEVEL ROUTE
+// Get all assignments for a specific course (now for teachers OR students)
+router.get('/:courseId/assignments', protect, getCourseAssignments);
 
 module.exports = router;

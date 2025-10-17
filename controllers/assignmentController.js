@@ -82,51 +82,61 @@ exports.getAssignmentSubmissions = async (req, res) => {
     }
 };
 
-// @desc    Get all assignments for a course, including submission status for the logged-in student
+// @desc    Get all assignments for a course (for enrolled students OR the teacher)
 // @route   GET /api/courses/:courseId/assignments
-// @access  Private/Student
+// @access  Private
 exports.getCourseAssignments = async (req, res) => {
     try {
         const courseId = req.params.courseId;
-        const studentId = req.user._id;
+        const user = req.user;
 
-        // Security check: Verify the student is enrolled
-        const isEnrolled = await Enrollment.findOne({ course: courseId, student: studentId });
-        if (!isEnrolled) {
-            return res.status(403).json({ message: 'You must be enrolled to view assignments.' });
+        // 1. Fetch the course to check ownership
+        const course = await Course.findById(courseId);
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
         }
-        
-        // --- LOGIC UPDATED HERE ---
 
-        // 1. Get all assignments for the course (hiding correct answers)
-        const assignments = await Assignment.find({ course: courseId })
-            .select('-questions.correctAnswer')
-            .lean(); // .lean() makes the documents plain JS objects, easier to modify
+        const isTeacherOfCourse = course.teacher.toString() === user._id.toString();
 
-        // 2. Get all submissions by this student for these assignments
-        const assignmentIds = assignments.map(a => a._id);
-        const submissions = await Submission.find({ 
-            student: studentId, 
-            assignment: { $in: assignmentIds } 
-        });
+        // 2. Security Check: Allow if user is the teacher OR an enrolled student
+        if (!isTeacherOfCourse) {
+            const isEnrolled = await Enrollment.findOne({ course: courseId, student: user._id });
+            if (!isEnrolled) {
+                return res.status(403).json({ message: 'You are not authorized to view these assignments.' });
+            }
+        }
 
-        // 3. Create a map for quick lookup of submissions
-        const submissionMap = new Map();
-        submissions.forEach(sub => {
-            submissionMap.set(sub.assignment.toString(), sub);
-        });
+        // 3. Fetch assignments
+        let assignments;
+        if (isTeacherOfCourse) {
+            // Teacher gets to see everything, including correct answers
+            assignments = await Assignment.find({ course: courseId }).lean();
+        } else {
+            // Student sees assignments but correct answers are hidden
+            assignments = await Assignment.find({ course: courseId })
+                .select('-questions.correctAnswer')
+                .lean();
+        }
 
-        // 4. Combine assignments with their submission status
-        const assignmentsWithStatus = assignments.map(assignment => {
-            const submission = submissionMap.get(assignment._id.toString());
-            return {
+        // If the user is a student, add their submission status
+        if (user.role === 'Student') {
+            const assignmentIds = assignments.map(a => a._id);
+            const submissions = await Submission.find({ 
+                student: user._id, 
+                assignment: { $in: assignmentIds } 
+            });
+            const submissionMap = new Map();
+            submissions.forEach(sub => submissionMap.set(sub.assignment.toString(), sub));
+            
+            const assignmentsWithStatus = assignments.map(assignment => ({
                 ...assignment,
-                isSubmitted: submission ? true : false,
-                score: submission ? submission.score : null,
-            };
-        });
+                isSubmitted: submissionMap.has(assignment._id.toString()),
+                score: submissionMap.get(assignment._id.toString())?.score || null,
+            }));
+            return res.json(assignmentsWithStatus);
+        }
 
-        res.json(assignmentsWithStatus);
+        res.json(assignments); // Teacher just gets the assignments directly
     } catch (error) {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
