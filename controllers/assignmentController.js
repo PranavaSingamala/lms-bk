@@ -1,10 +1,12 @@
-// ... keep all the require statements at the top
+const Assignment = require('../models/Assignment');
+const Submission = require('../models/Submission');
+const Course = require('../models/Course');
+const Enrollment = require('../models/Enrollment');
 
 // @desc    Create an assignment (MCQ Quiz) for a course
 // @route   POST /api/assignments
 // @access  Private/Teacher
 exports.createAssignment = async (req, res) => {
-    // Expects title, courseId, and a 'questions' array in the body
     const { courseId, title, dueDate, questions } = req.body;
 
     try {
@@ -18,7 +20,7 @@ exports.createAssignment = async (req, res) => {
             course: courseId, 
             title, 
             dueDate, 
-            questions // The array of question objects
+            questions
         });
         res.status(201).json(assignment);
     } catch (error) {
@@ -30,7 +32,6 @@ exports.createAssignment = async (req, res) => {
 // @route   POST /api/assignments/:id/submit
 // @access  Private/Student
 exports.submitAssignment = async (req, res) => {
-    // Expects an 'answers' array in the body
     const { answers } = req.body; 
     const assignmentId = req.params.id;
 
@@ -80,7 +81,24 @@ exports.submitAssignment = async (req, res) => {
     }
 };
 
-// ... keep the getAssignmentSubmissions function as it is
+// @desc    Get all submissions for a specific assignment
+// @route   GET /api/assignments/:id/submissions
+// @access  Private/Teacher
 exports.getAssignmentSubmissions = async (req, res) => {
-    // ... (no changes needed here)
+    try {
+        const assignment = await Assignment.findById(req.params.id).populate('course');
+        if (!assignment) {
+            return res.status(404).json({ message: 'Assignment not found' });
+        }
+
+        // Security check: Verify the teacher owns the course
+        if (assignment.course.teacher.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized to view submissions for this assignment' });
+        }
+
+        const submissions = await Submission.find({ assignment: req.params.id }).populate('student', 'name email');
+        res.json(submissions);
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
 };
