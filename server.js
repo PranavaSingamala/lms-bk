@@ -15,8 +15,7 @@ const app = express();
 // Define the list of allowed origins (your frontend URLs)
 const allowedOrigins = [
   'http://localhost:5174', // Your local dev environment
-  // Add your deployed frontend URL here once you have it
-  // e.g., 'https://my-lms-frontend.vercel.app' 
+  'https://lms-fe-flax.vercel.app' // <-- ADD THIS LINE
 ];
 
 const corsOptions = {
