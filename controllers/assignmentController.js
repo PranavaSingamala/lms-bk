@@ -82,6 +82,59 @@ exports.getAssignmentSubmissions = async (req, res) => {
     }
 };
 
+
+// --- NEW FUNCTION ---
+// @desc    Get assignments for a course with submission counts (Teacher View)
+// @route   GET /api/assignments/course/:courseId/teacher-view
+// @access  Private/Teacher
+exports.getAssignmentsWithSubmissionCounts = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const teacherId = req.user._id;
+
+        // 1. Security check: Verify user is the teacher of the course
+        const course = await Course.findById(courseId);
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        if (course.teacher.toString() !== teacherId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to view this course\'s assignments' });
+        }
+
+        // 2. Use an aggregation pipeline to efficiently get assignments and count their submissions
+        const assignmentsWithCounts = await Assignment.aggregate([
+            {
+                $match: { course: new mongoose.Types.ObjectId(courseId) }
+            },
+            {
+                $lookup: {
+                    from: 'submissions',
+                    localField: '_id',
+                    foreignField: 'assignment',
+                    as: 'submissions'
+                }
+            },
+            {
+                $addFields: {
+                    submissionCount: { $size: '$submissions' }
+                }
+            },
+            {
+                $project: {
+                    submissions: 0 // Remove the full submissions array from the final output
+                }
+            }
+        ]);
+        
+        res.json(assignmentsWithCounts);
+
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+
+
 // @desc    Get all assignments for a course (for enrolled students OR the teacher)
 // @route   GET /api/courses/:courseId/assignments
 // @access  Private
